@@ -12,8 +12,8 @@ end
 
 local chatSource = function(msg) -- Find the source of the message
 	--if string.sub(msg, 1, 1) == "<" then -- Normal chat messages
-		local parts = string.split(msg, ">") -- Split it at the closing >
-		return {form = "chat", name = string.sub(parts[1], 2)} -- Return the first part excluding the first character
+	--	local parts = string.split(msg, ">") -- Split it at the closing >
+	--	return {form = "chat", name = string.sub(parts[1], 2)} -- Return the first part excluding the first character
 	--elseif string.sub(msg, 1, 2) == "* " then -- /me messages
 	if string.sub(msg, 1, 2) == "* " then -- /me messages frog update
 		local parts = string.split(msg, " ") -- Split the message before and after the name
