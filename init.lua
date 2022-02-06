@@ -1,12 +1,12 @@
 -- Techy5's colored chat CSM
 
 local data = minetest.get_mod_storage()
-local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc", "anticheat"}
+local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc", "anticheat", "PM"}
 local guiRow = 1 -- Which row in the GUI is selected
 --local default = "#FFFFFF"
-local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "limegreen", "yellow"}
+local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "limegreen", "yellow", "deeppink"}
 
-for i = 1,8 do -- Make sure all our defaults are in place.
+for i = 1,9 do -- Make sure all our defaults are in place.
 	local key = "default_" .. forms[i]
 	if not data:to_table().fields[key] then --data:set_string(key, default) end
         data:set_string(key,default[i]) end
@@ -22,6 +22,9 @@ local chatSource = function(msg) -- Find the source of the message
 	--?print("ME: " .. tostring(parts[2]))?
 		return {form = "me", name = parts[2]}
 	--elseif string.sub(msg, 1, 4) == "*** " then -- Join/leave messages
+    elseif string.sub(msg, 1, 2) == "PM" then
+        local parts = string.split(msg, " ")
+        return {form = "PM", name = parts[3]}
 	elseif string.sub(msg, 1, 3) == "<= " then --or string.sub(msg, 1, 3) == "=> " then -- Leave messages
 		local parts = string.split(msg, " ") -- Split the message before and after the name
 	--?print("JOIN/LEAVE: " .. tostring(parts[2]))
@@ -84,7 +87,7 @@ local getList = function(readable) -- Return nicely sorted array of colour defen
 		end
 	end
 	table.sort(arr) -- Sort alphabetically.
-	for i = 1,8 do -- List defaults at end
+	for i = 1,9 do -- List defaults at end
 		local key = "default_" .. forms[i] -- Get default setting key
 		local value = list[key] -- Get value for key
 		arr[#arr+1] = key .. "," .. value
