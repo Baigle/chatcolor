@@ -12,6 +12,11 @@ A Minetest CSM which adds functionality for colouring messages from specific pla
 
 ## How to Use
 
+### Installation
+Forum Post: https://forum.minetest.net/viewtopic.php?f=53&t=17830 
+
+Wiki Article: https://wiki.minetest.net/Installing_Client-Side_Mods
+
 ### Colours
 
 Colours can be either a hex colour (such as `#00FF00`) or a HTML colour name (such as `plum`).
