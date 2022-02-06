@@ -1,13 +1,15 @@
 -- Techy5's colored chat CSM
 
 local data = minetest.get_mod_storage()
-local forms = {"chat", "me", "join"}
+local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc", "anticheat"}
 local guiRow = 1 -- Which row in the GUI is selected
-local default = "#FFFFFF" -- Default colour
+--local default = "#FFFFFF"
+local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "limegreen", "yellow"}
 
-for i = 1,3 do -- Make sure all our defaults are in place.
+for i = 1,8 do -- Make sure all our defaults are in place.
 	local key = "default_" .. forms[i]
-	if not data:to_table().fields[key] then data:set_string(key, default) end
+	if not data:to_table().fields[key] then --data:set_string(key, default) end
+        data:set_string(key,default[i]) end
 end
 
 local chatSource = function(msg) -- Find the source of the message
@@ -20,12 +22,30 @@ local chatSource = function(msg) -- Find the source of the message
 	--?print("ME: " .. tostring(parts[2]))?
 		return {form = "me", name = parts[2]}
 	--elseif string.sub(msg, 1, 4) == "*** " then -- Join/leave messages
-	elseif string.sub(msg, 1, 3) == "<= " or string.sub(msg, 1, 3) == "=> " then -- Join/leave messages frog edit
+	elseif string.sub(msg, 1, 3) == "<= " then --or string.sub(msg, 1, 3) == "=> " then -- Leave messages
 		local parts = string.split(msg, " ") -- Split the message before and after the name
 	--?print("JOIN/LEAVE: " .. tostring(parts[2]))
-		return {form = "join", name = parts[2]}
+		return {form = "leave", name = parts[2]}
 	--?end
-	elseif string.split(msg, ":") then -- Normal chat messages frog edit
+    elseif string.sub(msg, 1, 3) == "=> " then -- Join messages
+        local parts = string.split(msg, " ")
+        return {form = "join", name = parts[2]}
+    elseif string.sub(msg, 1, 1) == "<" then --or string.sub(msg, 1, 4) == "@IRC" then -- IRC message format on catlandia
+        local parts = string.split(msg, ">")
+        return {form = "irc", name = string.sub(parts[1], 2)} -- the IRC names can have crazy characters and spaces
+    elseif string.sub(msg, 1, 3) == "-!-" then -- bridged IRC joins and leaves, catlandia formatting
+        if string.sub(msg, 1, 6) == "joined" then
+            local parts = string.split(msg, "> ")
+            return {form = "irc_join", name = string.sub(parts[1], 2)}
+        elseif string.sub(msg, 1, 4) == "left" or string.sub(msg, 1, 4) == "quit" then
+            local parts = string.split(msg, "> ")
+            return {form = "irc_left", name = string.sub(parts[1], 2)}
+        end
+        --return false -- if it has the -!- but no joined or left message then fail to white color
+    elseif string.sub(msg, 1, 10) == "#anticheat" then
+        local parts = string.split(msg, " ")
+        return {form = "anticheat", name = parts[2]}
+    elseif string.split(msg, ":") then -- Normal chat messages frog edit
 		local parts = string.split(msg, ":") -- Split it at the : instead of the < (frog edit)
 	--?print("CHAT: " .. string.sub(parts[1], 1))
 		--?return {form = "chat", name = string.sub(parts[1], 1)} -- Return the first part
@@ -45,7 +65,7 @@ local setColor = function(name, value)
 			minetest.display_chat_message("Cannot delete defaults!")
 			return
 		end
-		key = name 
+		key = name
 	else -- If we are setting a player colour
 		key = "player_" .. name -- Append player prefix
 	end
@@ -64,7 +84,7 @@ local getList = function(readable) -- Return nicely sorted array of colour defen
 		end
 	end
 	table.sort(arr) -- Sort alphabetically.
-	for i = 1,3 do -- List defaults at end
+	for i = 1,8 do -- List defaults at end
 		local key = "default_" .. forms[i] -- Get default setting key
 		local value = list[key] -- Get value for key
 		arr[#arr+1] = key .. "," .. value
@@ -145,7 +165,7 @@ minetest.register_chatcommand("gui", {
 minetest.register_on_formspec_input(function(formname, fields)
 	if not string.find(formname, "chatcolor") then return end -- Avoid conflicts
 	if fields.main_table then guiRow = tonumber(string.match(fields.main_table, "%d+")) end -- Get the selected table row on change.
-	
+
 	if fields.main_delete then
 		local list = getList(true)
 		local key = string.split(list[guiRow], ",")[1] -- From selected row number, find what entry is selected
@@ -171,7 +191,7 @@ minetest.register_on_mods_loaded(function()
 	minetest.register_on_receiving_chat_message(function(message)
 		local msgPlain = minetest.strip_colors(message)
 		local source = chatSource(msgPlain)
-		
+
 		if source then -- Normal chat/me/join messages
 			local key = "player_" .. source.name -- The setting name
 			local color = data:get_string(key) -- Get the desired colour
