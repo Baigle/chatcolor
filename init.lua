@@ -11,15 +11,25 @@ for i = 1,3 do -- Make sure all our defaults are in place.
 end
 
 local chatSource = function(msg) -- Find the source of the message
-	if string.sub(msg, 1, 1) == "<" then -- Normal chat messages
+	--if string.sub(msg, 1, 1) == "<" then -- Normal chat messages
 		local parts = string.split(msg, ">") -- Split it at the closing >
 		return {form = "chat", name = string.sub(parts[1], 2)} -- Return the first part excluding the first character
-	elseif string.sub(msg, 1, 2) == "* " then -- /me messages
+	--elseif string.sub(msg, 1, 2) == "* " then -- /me messages
+	if string.sub(msg, 1, 2) == "* " then -- /me messages frog update
 		local parts = string.split(msg, " ") -- Split the message before and after the name
+	--?print("ME: " .. tostring(parts[2]))?
 		return {form = "me", name = parts[2]}
-	elseif string.sub(msg, 1, 4) == "*** " then -- Join/leave messages
+	--elseif string.sub(msg, 1, 4) == "*** " then -- Join/leave messages
+	elseif string.sub(msg, 1, 3) == "<= " or string.sub(msg, 1, 3) == "=> " then -- Join/leave messages frog edit
 		local parts = string.split(msg, " ") -- Split the message before and after the name
+	--?print("JOIN/LEAVE: " .. tostring(parts[2]))
 		return {form = "join", name = parts[2]}
+	--?end
+	elseif string.split(msg, ":") then -- Normal chat messages frog edit
+		local parts = string.split(msg, ":") -- Split it at the : instead of the < (frog edit)
+	--?print("CHAT: " .. string.sub(parts[1], 1))
+		--?return {form = "chat", name = string.sub(parts[1], 1)} -- Return the first part
+		return {form = "chat", name = parts[1]} -- Return the first part
 	end
 	return false -- If nothing else returned, return false
 end
@@ -155,8 +165,10 @@ minetest.register_on_formspec_input(function(formname, fields)
 	end
 end)
 
-minetest.register_on_connect(function()
-	minetest.register_on_receiving_chat_messages(function(message)
+--minetest.register_on_connect(function()
+--	minetest.register_on_receiving_chat_messages(function(message)
+minetest.register_on_mods_loaded(function()
+	minetest.register_on_receiving_chat_message(function(message)
 		local msgPlain = minetest.strip_colors(message)
 		local source = chatSource(msgPlain)
 		
