@@ -1,12 +1,12 @@
 -- Techy5's colored chat CSM
 
 local data = minetest.get_mod_storage()
-local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc", "anticheat", "PM"}
+local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc", "anticheat", "PM", "error", "warning"}
 local guiRow = 1 -- Which row in the GUI is selected
 --local default = "#FFFFFF"
-local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "limegreen", "yellow", "deeppink"}
+local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "limegreen", "khaki", "deeppink", "red", "yellow"}
 
-for i = 1,9 do -- Make sure all our defaults are in place.
+for i = 1,11 do -- Make sure all our defaults are in place.
 	local key = "default_" .. forms[i]
 	if not data:to_table().fields[key] then --data:set_string(key, default) end
         data:set_string(key,default[i]) end
@@ -22,7 +22,7 @@ local chatSource = function(msg) -- Find the source of the message
 	--?print("ME: " .. tostring(parts[2]))?
 		return {form = "me", name = parts[2]}
 	--elseif string.sub(msg, 1, 4) == "*** " then -- Join/leave messages
-    elseif string.sub(msg, 1, 2) == "PM" then
+    elseif string.sub(msg, 1, 3) == "PM " then
         local parts = string.split(msg, " ")
         return {form = "PM", name = parts[3]}
 	elseif string.sub(msg, 1, 3) == "<= " then --or string.sub(msg, 1, 3) == "=> " then -- Leave messages
@@ -37,14 +37,17 @@ local chatSource = function(msg) -- Find the source of the message
         local parts = string.split(msg, ">")
         return {form = "irc", name = string.sub(parts[1], 2)} -- the IRC names can have crazy characters and spaces
     elseif string.sub(msg, 1, 3) == "-!-" then -- bridged IRC joins and leaves, catlandia formatting
-        if string.sub(msg, 1, 6) == "joined" then
+    -- it cant properly tell between joins and leaves
+        --if string.sub(msg, 1, 6) == "joined" then
+        if string.match(msg, " joined ") then
             local parts = string.split(msg, "> ")
             return {form = "irc_join", name = string.sub(parts[1], 2)}
-        elseif string.sub(msg, 1, 4) == "left" or string.sub(msg, 1, 4) == "quit" then
+        --elseif string.sub(msg, 1, 4) == "left" or string.sub(msg, 1, 4) == "quit" then
+        elseif string.match(msg, "has left") or string.match(msg, "has quit") then
             local parts = string.split(msg, "> ")
             return {form = "irc_left", name = string.sub(parts[1], 2)}
+        else return {form = "error", name = "error"}
         end
-        --return false -- if it has the -!- but no joined or left message then fail to white color
     elseif string.sub(msg, 1, 10) == "#anticheat" then
         local parts = string.split(msg, " ")
         return {form = "anticheat", name = parts[2]}
@@ -54,7 +57,7 @@ local chatSource = function(msg) -- Find the source of the message
 		--?return {form = "chat", name = string.sub(parts[1], 1)} -- Return the first part
 		return {form = "chat", name = parts[1]} -- Return the first part
 	end
-	return false -- If nothing else returned, return false
+    return false -- fail to white
 end
 
 local setColor = function(name, value)
@@ -87,7 +90,7 @@ local getList = function(readable) -- Return nicely sorted array of colour defen
 		end
 	end
 	table.sort(arr) -- Sort alphabetically.
-	for i = 1,9 do -- List defaults at end
+	for i = 1,11 do -- List defaults at end
 		local key = "default_" .. forms[i] -- Get default setting key
 		local value = list[key] -- Get value for key
 		arr[#arr+1] = key .. "," .. value
@@ -129,7 +132,7 @@ end
 
 minetest.register_chatcommand("setcolor", { -- Assign a colour to chat messages from a specific person
 	params = "<name> <color>",
-	description = "Colourize a specified player's chat messages",
+	description = "Colourize a specified player's chat messages.",
 	func = function(param)
 		local args = string.split(param, " ") -- Split up the arguments
 		setColor(args[1], args[2])
@@ -138,7 +141,7 @@ minetest.register_chatcommand("setcolor", { -- Assign a colour to chat messages 
 
 minetest.register_chatcommand("delcolor", {
 	params = "<name>",
-	description = "Set a specified player's chat messages to the default color",
+	description = "Set a specified player's chat messages to the default color.",
 	func = function(param)
 		setColor(param, nil) -- Setting a colour to nil deletes it.
 	end
@@ -146,7 +149,7 @@ minetest.register_chatcommand("delcolor", {
 
 minetest.register_chatcommand("listcolors", {
 	params = "",
-	description = "List player/color pairs",
+	description = "List current player/color pairs.",
 	func = function(param)
 		local list = getList(true)
 		for i = 1,#list do -- Print list to chat
@@ -158,7 +161,7 @@ minetest.register_chatcommand("listcolors", {
 
 minetest.register_chatcommand("gui", {
 	params = "",
-	description = "Display colored chat GUI",
+	description = "Display colorchat formspec GUI.",
 	func = function(param)
 		guiRow = 1 -- Select first row of table
 		minetest.show_formspec("chatcolor:maingui", getFormspec())
