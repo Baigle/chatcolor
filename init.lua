@@ -1,43 +1,41 @@
 -- Techy5's colored chat CSM
 
 local data = minetest.get_mod_storage()
-local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc", "anticheat", "PM", "error", "warning"}
+local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc_nickname", "irc", "anticheat", "PM", "error", "warning"}
 local guiRow = 1 -- Which row in the GUI is selected
 --local default = "#FFFFFF"
-local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "limegreen", "khaki", "deeppink", "red", "yellow"}
+local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "lime", "limegreen", "khaki", "deeppink", "red", "yellow"}
+--local warn = {0} -- Default number of warnings for all players in the key array
 
-for i = 1,11 do -- Make sure all our defaults are in place.
+for i = 1,12 do -- Make sure all our defaults are in place.
 	local key = "default_" .. forms[i]
 	if not data:to_table().fields[key] then --data:set_string(key, default) end
         data:set_string(key,default[i]) end
 end
 
-local chatSource = function(msg) -- Find the source of the message
+local chatSource = function(msg) -- Find the source type of the message
 	--if string.sub(msg, 1, 1) == "<" then -- Normal chat messages
 	--	local parts = string.split(msg, ">") -- Split it at the closing >
 	--	return {form = "chat", name = string.sub(parts[1], 2)} -- Return the first part excluding the first character
-	--elseif string.sub(msg, 1, 2) == "* " then -- /me messages
 	if string.sub(msg, 1, 2) == "* " then -- /me messages frog update
 		local parts = string.split(msg, " ") -- Split the message before and after the name
 	--?print("ME: " .. tostring(parts[2]))?
 		return {form = "me", name = parts[2]}
-	--elseif string.sub(msg, 1, 4) == "*** " then -- Join/leave messages
     elseif string.sub(msg, 1, 3) == "PM " then
         local parts = string.split(msg, " ")
         return {form = "PM", name = parts[3]}
-	elseif string.sub(msg, 1, 3) == "<= " then --or string.sub(msg, 1, 3) == "=> " then -- Leave messages
+	elseif string.sub(msg, 1, 3) == "<= " then
 		local parts = string.split(msg, " ") -- Split the message before and after the name
 	--?print("JOIN/LEAVE: " .. tostring(parts[2]))
 		return {form = "leave", name = parts[2]}
 	--?end
-    elseif string.sub(msg, 1, 3) == "=> " then -- Join messages
+    elseif string.sub(msg, 1, 3) == "=> " then -- Default Join messages
         local parts = string.split(msg, " ")
         return {form = "join", name = parts[2]}
-    elseif string.sub(msg, 1, 1) == "<" then --or string.sub(msg, 1, 4) == "@IRC" then -- IRC message format on catlandia
+    elseif string.sub(msg, 1, 1) == "<" or string.match(msg, 1, 4) == "@IRC" then -- IRC message format on catlandia
         local parts = string.split(msg, ">")
         return {form = "irc", name = string.sub(parts[1], 2)} -- the IRC names can have crazy characters and spaces
     elseif string.sub(msg, 1, 3) == "-!-" then -- bridged IRC joins and leaves, catlandia formatting
-    -- it cant properly tell between joins and leaves
         --if string.sub(msg, 1, 6) == "joined" then
         if string.match(msg, " joined ") then
             local parts = string.split(msg, "> ")
@@ -45,19 +43,29 @@ local chatSource = function(msg) -- Find the source of the message
         --elseif string.sub(msg, 1, 4) == "left" or string.sub(msg, 1, 4) == "quit" then
         elseif string.match(msg, "has left") or string.match(msg, "has quit") then
             local parts = string.split(msg, "> ")
-            return {form = "irc_left", name = string.sub(parts[1], 2)}
+            return {form = "irc_leave", name = string.sub(parts[1], 2)}
+        elseif string.match(msg, " changed ") or string.match(msg, "known as") then
+            local parts = string.split(msg, "> ")
+            return {form = "irc_nickname", name = string.sub(parts[1], 2)} -- Baigle doubts these work if name specified
         else return {form = "error", name = "error"}
         end
     elseif string.sub(msg, 1, 10) == "#anticheat" then
         local parts = string.split(msg, " ")
         return {form = "anticheat", name = parts[2]}
     elseif string.split(msg, ":") then -- Normal chat messages frog edit
-		local parts = string.split(msg, ":") -- Split it at the : instead of the < (frog edit)
+        --if canKick() then -- if they have kick privileges
+        if string.match(msg, "fucks") or string.match(msg, "sex") or string.match(msg, "s3x") or string.match(msg, "fuck me") then -- marks messages with possible sexual actions in default yellow
+            local parts = string.split(msg, ":") -- Split it at the : instead of the <
+            return {form = "warning", name = parts[1]}
+        --end
+        else local parts = string.split(msg, ":")
 	--?print("CHAT: " .. string.sub(parts[1], 1))
 		--?return {form = "chat", name = string.sub(parts[1], 1)} -- Return the first part
-		return {form = "chat", name = parts[1]} -- Return the first part
-	end
-    return false -- fail to white
+        return {form = "chat", name = parts[1]} -- Return the first part
+        end
+    else return {form = "error", name = "error"}
+    end
+    --return false -- fail to white
 end
 
 local setColor = function(name, value)
@@ -90,7 +98,7 @@ local getList = function(readable) -- Return nicely sorted array of colour defen
 		end
 	end
 	table.sort(arr) -- Sort alphabetically.
-	for i = 1,11 do -- List defaults at end
+	for i = 1,12 do -- List defaults at end
 		local key = "default_" .. forms[i] -- Get default setting key
 		local value = list[key] -- Get value for key
 		arr[#arr+1] = key .. "," .. value
@@ -129,6 +137,31 @@ local getFormspec = function(modify, defaultText)
 		]]
 	end
 end
+
+local function canKick() -- checks for kick privilege
+    if minetest.get_player_privs().kick == "true" then
+        return true
+    else
+        return false
+    end
+end
+
+--local function warn(warnedplayer, warningtype)
+--    if not canKick() then
+--        minetest.display_chat_message("You need 'kick' privileges in order to warn players.")
+--        return
+--    else
+--
+--    end
+--end
+
+--minetest.register_chatcommand("warn", { -- warn a player when they break the rules
+--    params = "<warnedplayer> <warningtype>",
+--    description = "Warn a specified player twice before kicking so they know they broke the rules."
+--    func = function()
+--
+--    end
+--})
 
 minetest.register_chatcommand("setcolor", { -- Assign a colour to chat messages from a specific person
 	params = "<name> <color>",
