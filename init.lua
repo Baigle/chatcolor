@@ -1,13 +1,13 @@
 -- Techy5's colored chat CSM
 
 local modDataStor = minetest.get_mod_storage()
-local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc_nickname", "irc", "anticheat", "PM", "error", "warning", "online", "helping"}
+local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc_nickname", "irc", "anticheat", "PM", "error", "warning", "online", "helping", "teleport_here", "teleport_there"}
 local guiRow = 1 -- Which row in the GUI is selected.
-local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "lime", "limegreen", "lightyellow", "deeppink", "red", "khaki", "aqua", "lightpink"}
-local helpWords = {"killed me", "help me", "sad", "re mean", "please", "anyone", "hate", "feel", "stole", "need help", "admin"}
-local noticeWords = {"sex", "s3x", "have s?x", "so wet", "im wet", "fucks", "re fucking", "fuck me", "fuck you", "fuck with", "bitch", "cunt", "nigg", "nig?r", "lets fuck", "pussy", "vagin", "penis", "dick", "cock", "cum", "rape", "r?pe", "moan", "horny", "poke", "nuts", "balls", "deep", "name is", "live at", "real name"} -- Bad words that should catch your attention if you're a moderator.
+local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "lime", "limegreen", "lightyellow", "deeppink", "red", "khaki", "aqua", "lightpink", "lightsalmon", "coral"}
+local helpWords = {"killed me", "help me", " sad", "re mean", "please", "anyone", "hate", "feel", "stole", "need help", " admin"}
+local noticeWords = {"sex", "s3x", "have s?x", "so wet", "im wet", "fucks", "re fucking", "fuck me", "fuck you", "fuck with", "bitch", " b?tch", "whore", "slut", "cunt", "nigg", " nig?r ", "lets fuck", "pussy", "vagin", "penis", "dick", "cock", "cum", "rape", " r?pe ", "moan", "horny", "poke", "nuts", "balls", "deep", "name is", "live at", "real name"} -- Bad words that should catch your attention if you're a moderator.
 local warnedPlayers = {} -- Warnings matched exactly to an online player. A string:value map would be best.
---local mename = minetest:get_player_name --minetest.setting_get("name") --get_player_name()  -- none of these work in CSM
+--local mename = minetest.setting_get("name") --get_player_name()  -- none of these work in CSM
 --local meprivs = minetest.get_player_privs(mename)
 --local meprivsstr = minetest.privs_to_string(meprivs)
 
@@ -33,87 +33,97 @@ end
 --          remove waypoint when quaternions are within 2 meters or after a long time
 --end
 
-local noticeWordsCheck = function(msgPlain)
+local noticeWordsCheck = function(msgLower)
             --local enabled = true
             for n = 1,#noticeWords do -- go through notice words string array one at a time until it ends
-                if msgPlain and string.match(msgPlain, tostring(noticeWords[n])) then -- if cleaned message exists and theres a matched word
-                    --local badword = string.match(msgPlain, noticeWords[n])
+                if msgLower and string.match(msgLower, tostring(noticeWords[n])) then -- if cleaned message exists and theres a matched word
+                    --local badword = string.match(msgLower, noticeWords[n])
                     return true --, badword
                 --else return true -- always triggers notice
                 end
             end
 end
 
-local helpWordsCheck = function(msgPlain)
+local helpWordsCheck = function(msgLower)
             --local enabled = true
             for h = 1,#helpWords do -- go through help words string array one at a time until it ends
-                if msgPlain and string.match(msgPlain, tostring(helpWords[h])) then -- if cleaned message exists and theres a matched word
-                    --local helpword = string.match(msgPlain, helpWords[h])
+                if msgLower and string.match(msgLower, tostring(helpWords[h])) then -- if cleaned message exists and theres a matched word
+                    --local helpword = string.match(msgLower, helpWords[h])
                     return true
                 end
             end
 end
 
-local chatSource = function(msgPlain) -- Find the source type of the message
-	--if string.sub(msgPlain, 1, 1) == "<" then -- Normal chat messages
-	--	local parts = string.split(msgPlain, ">") -- Split it at the closing >
+local chatSource = function(msgLower) -- Find the source type of the message
+	--if string.sub(msgLower, 1, 1) == "<" then -- Normal chat messages
+	--	local parts = string.split(msgLower, ">") -- Split it at the closing >
 	--	return {form = "chat", name = string.sub(parts[1], 2)} -- Return the first part excluding the first character
-	if string.sub(msgPlain, 1, 2) == "* " then -- /me messages frog update
-		local parts = string.split(msgPlain, " ") -- Split the message before and after the name
+	if string.sub(msgLower, 1, 2) == "* " then -- /me messages frog update
+		local parts = string.split(msgLower, " ") -- Split the message before and after the name
 	--?print("ME: " .. tostring(parts[2]))?
 		return {form = "me", name = parts[2]}
-    elseif string.sub(msgPlain, 1, 3) == "PM " then
-        local parts = string.split(msgPlain, " ")
+    elseif string.sub(msgLower, 1, 3) == "PM " then
+        local parts = string.split(msgLower, " ")
         return {form = "PM", name = parts[3]}
-    elseif string.match(msgPlain, " Online: ") then
-        local parts = string.split(msgPlain, ", ")
+    elseif string.match(msgLower, " Online: ") then
+        local parts = string.split(msgLower, ", ")
         return {form = "online", name = parts[1]}
-	elseif string.sub(msgPlain, 1, 3) == "<= " then
-		local parts = string.split(msgPlain, " ") -- Split the message before and after the name
+	elseif string.sub(msgLower, 1, 3) == "<= " then
+		local parts = string.split(msgLower, " ") -- Split the message before and after the name
 	--?print("JOIN/LEAVE: " .. tostring(parts[2]))
 		return {form = "leave", name = parts[2]}
 	--?end
-    elseif string.sub(msgPlain, 1, 3) == "=> " then -- Default Join messages
-        local parts = string.split(msgPlain, " ")
+    elseif string.sub(msgLower, 1, 3) == "=> " then -- Default Join messages
+        local parts = string.split(msgLower, " ")
         return {form = "join", name = parts[2]}
-    elseif string.sub(msgPlain, 1, 1) == "<" or string.match(msgPlain, 1, 4) == "@IRC" then -- IRC message format on catlandia
-        if noticeWordsCheck(msgPlain) then -- marks messages with possible sexual actions
-            local parts = string.split(msgPlain, ">")
+    elseif string.sub(msgLower, 1, 10) == "#anticheat: " then
+        local parts = string.split(msgLower, " ")
+        return {form = "anticheat", name = parts[2]}
+    elseif string.match(msgLower, " is requesting ") and string.match(msgLower, " teleport to ") and string.match(msgLower, " /tpy to accept") then
+        -- Yellow/Red [teleport_here]: player is requesting to teleport to you. /tpy to accept.
+        if string.match(msgLower, " is requesting to teleport to you. /tpy to accept.") then
+            local parts = string.split(msgLower, " ")
+            return {form = "teleport_here", name = parts[1]}
+        -- Orange/Red [teleport_there]: player is requesting that you teleport to them. /tpy to accept; /tpn to deny
+        elseif string.match(msgLower, " is requesting that you teleport to them. /tpy to accept; /tpn to deny") then
+            local parts = string.split(msgLower, " ")
+            return {form = "teleport_there", name = parts[1]}
+        end
+    elseif string.sub(msgLower, 1, 1) == "<" or string.match(msgLower, 1, 4) == "@IRC" then -- IRC message format on catlandia
+        if noticeWordsCheck(msgLower) then -- marks messages with possible sexual actions
+            local parts = string.split(msgLower, ">")
             return {form = "warning", name = parts[1]}
-        elseif helpWordsCheck(msgPlain) then
-            local parts = string.split(msgPlain, ">")
+        elseif helpWordsCheck(msgLower) then
+            local parts = string.split(msgLower, ">")
             return {form = "helping", name = parts[1]}
         end
-        local parts = string.split(msgPlain, ">")
+        local parts = string.split(msgLower, ">")
         return {form = "irc", name = string.sub(parts[1], 2)} -- the IRC names can have crazy characters and spaces
-    elseif string.sub(msgPlain, 1, 3) == "-!-" then -- bridged IRC joins and leaves, catlandia formatting
-        --if string.sub(msgPlain, 1, 6) == "joined" then
-        if string.match(msgPlain, " joined ") then
-            local parts = string.split(msgPlain, "> ")
+    elseif string.sub(msgLower, 1, 3) == "-!-" then -- bridged IRC joins and leaves, catlandia formatting
+        --if string.sub(msgLower, 1, 6) == "joined" then
+        if string.match(msgLower, " joined ") then
+            local parts = string.split(msgLower, "> ")
             return {form = "irc_join", name = string.sub(parts[1], 2)}
-        --elseif string.sub(msgPlain, 1, 4) == "left" or string.sub(msgPlain, 1, 4) == "quit" then
-        elseif string.match(msgPlain, "has left") or string.match(msgPlain, "has quit") then
-            local parts = string.split(msgPlain, "> ")
+        --elseif string.sub(msgLower, 1, 4) == "left" or string.sub(msgLower, 1, 4) == "quit" then
+        elseif string.match(msgLower, "has left") or string.match(msgLower, "has quit") then
+            local parts = string.split(msgLower, "> ")
             return {form = "irc_leave", name = string.sub(parts[1], 2)}
-        elseif string.match(msgPlain, " changed ") or string.match(msgPlain, "known as") then
-            local parts = string.split(msgPlain, "> ")
+        elseif string.match(msgLower, " changed ") or string.match(msgLower, "known as") then
+            local parts = string.split(msgLower, "> ")
             return {form = "irc_nickname", name = string.sub(parts[1], 2)} -- Baigle doubts these work if name specified
         else return {form = "error", name = "error"}
         end
-    elseif string.sub(msgPlain, 1, 10) == "#anticheat" then
-        local parts = string.split(msgPlain, " ")
-        return {form = "anticheat", name = parts[2]}
-    elseif string.split(msgPlain, ":") then -- Normal chat messages frog edit
+    elseif string.split(msgLower, ":") then -- Normal chat messages frog edit
         --if canKick() then --and noticeWordsCheck().enabled == true then -- if they have kick privileges
-            if noticeWordsCheck(msgPlain) then -- marks messages with bad words
-                local parts = string.split(msgPlain, ":") -- Split it at the : instead of the <
+            if noticeWordsCheck(msgLower) then -- marks messages with bad words
+                local parts = string.split(msgLower, ":") -- Split it at the : instead of the <
                 return {form = "warning", name = parts[1]}
-            elseif helpWordsCheck(msgPlain) then
-                local parts = string.split(msgPlain, ">")
+            elseif helpWordsCheck(msgLower) then
+                local parts = string.split(msgLower, ">")
                 return {form = "helping", name = parts[1]}
             end
-        --else local parts = string.split(msgPlain, ":")
-        local parts = string.split(msgPlain, ":")
+        --else local parts = string.split(msgLower, ":")
+        local parts = string.split(msgLower, ":")
 	--?print("CHAT: " .. string.sub(parts[1], 1))
 		--?return {form = "chat", name = string.sub(parts[1], 1)} -- Return the first part
         return {form = "chat", name = parts[1]} -- Return the first part
@@ -203,12 +213,6 @@ end
 --    end
 --end
 
---if core.get_privilege_list then
---		return core.get_privilege_list().shout
---	else
---		return true
---	end
-
 --minetest.register_chatcommand("warn", { -- warn a player when they break the rules
 --    params = "<warnedplayer> <warningtype>",
 --    description = "Warn a specified player twice before kicking so they know they broke the rules."
@@ -216,6 +220,10 @@ end
 --
 --    end
 --})
+
+-- player login detection somehwere
+--      one section is notification of user using PM, chat message, and stored message from user to that player using minetest.after or alternative scheduling mechanism
+--      other section is artificial temp-ban using automated kicking that gives more kicks based on how many warnings the player has, using tiers
 
 minetest.register_chatcommand("setcolor", { -- Assign a colour to chat messages from a specific person
 	params = "<name> <color>",
@@ -283,10 +291,10 @@ end)
 minetest.register_on_mods_loaded(function()
 	minetest.register_on_receiving_chat_message(function(message)
 		local msgPlain = minetest.strip_colors(message)
-        local source = chatSource(msgPlain)
-        --local msgLower = minetest.lower(msgPlain) -- lowercase for word matching
-        -- android minetest has this not us (https://github.com/search?q=org%3Aminetest+string.lower&type=code)
-        local msgTrim = string.trim(msgPlain) --msgLower) -- remove escape characters and pre-spaces
+        local msgLower = string.lower(msgPlain) -- lowercase for word matching
+        --local msgClean = string.gsub(msgLower) -- rubenwardy said https://github.com/minetest/minetest/issues/7291#issuecomment-1042376491
+        local msgTrim = string.trim(msgLower) -- msgClean) -- remove escape characters and pre-spaces
+        local source = chatSource(msgLower)
 
 
 		if source then -- Normal chat/me/join messages
