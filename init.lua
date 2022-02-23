@@ -140,7 +140,7 @@ local chatSource = function(msgLower, msgPlain) -- Find the source type of the m
                 return {form = "helping", name = parts[1]}
             end
         --else local parts = string.split(msgLower, ":")
-        local parts = string.split(msgLower, ":")
+        local parts = string.split(msgPlain, ":")
 	--?print("CHAT: " .. string.sub(parts[1], 1))
 		--?return {form = "chat", name = string.sub(parts[1], 1)} -- Return the first part
         return {form = "chat", name = parts[1]} -- Return the first part
