@@ -13,6 +13,8 @@ A Minetest CSM which adds functionality for colouring messages from specific pla
 ## How to Use
 
 ### Installation
+Currently compatible with the official Minetest 5.5.0 game client.
+
 Forum Post: https://forum.minetest.net/viewtopic.php?f=53&t=17830 
 
 Wiki Article: https://wiki.minetest.net/Installing_Client-Side_Mods
