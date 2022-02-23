@@ -133,7 +133,7 @@ local chatSource = function(msgLower, msgPlain) -- Find the source type of the m
                 local parts = string.split(msgPlain, ":") -- Split it at the : instead of the <
                 return {form = "warning", name = parts[1]}
             elseif playerMentionCheck(msgLower) then -- highlights messages with your name in it
-                local parts = string.split(msgPlain, ">")
+                local parts = string.split(msgPlain, ":")
                 return {form = "mention", name = parts[1]}
             elseif helpWordsCheck(msgLower) then
                 local parts = string.split(msgPlain, ":")
