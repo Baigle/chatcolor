@@ -1,15 +1,17 @@
 -- Techy5's colored chat CSM
 
 local modDataStor = minetest.get_mod_storage()
-local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc_nickname", "irc", "anticheat", "PM", "error", "warning", "online", "helping", "teleport_here", "teleport_there"}
+local forms = {"chat", "me", "join", "leave", "irc_join", "irc_leave", "irc_nickname", "irc", "anticheat", "PM", "mention", "error", "warning", "online", "helping", "teleport_here", "teleport_there"}
 local guiRow = 1 -- Which row in the GUI is selected.
-local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "lime", "limegreen", "lightyellow", "deeppink", "red", "khaki", "aqua", "lightpink", "lightsalmon", "coral"}
+local default = {"white", "orchid", "lightgreen", "salmon", "lightgreen", "salmon", "lime", "limegreen", "lightyellow", "deeppink", "springgreen", "red", "khaki", "aqua", "lightpink", "lightsalmon", "coral"}
 local helpWords = {"killed me", "help me", " sad", "re mean", "please", "anyone", "hate", "feel", "stole", "need help", " admin"}
-local noticeWords = {"sex", "s3x", "have s?x", "so wet", "im wet", "fucks", "re fucking", "fuck me", "fuck you", "fuck with", "bitch", " b?tch", "whore", "slut", "cunt", "nigg", " nig?r ", "lets fuck", "pussy", "vagin", "penis", "dick", "cock", "cum", "rape", " r?pe ", "moan", "horny", "poke", "nuts", "balls", "deep", "name is", "live at", "real name"} -- Bad words that should catch your attention if you're a moderator.
+local noticeWords = {"sex", "s3x", "have s?x", "so wet", "im wet", "fucks", "re fucking", "fuck me", "fuck you", "fuck with", "sleep with", "bitch", " b?tch", "whore", "slut", "cunt", "nigg", " nig?r ", "lets fuck", "pussy", "vagin", "penis", "dick", "cock", "cum", "rape", " r?pe ", "moan", "horny", "poke", "nuts", "balls", "deep", "name is", "live at", "real name"} -- Bad words that should catch your attention if you're a moderator.
 local warnedPlayers = {} -- Warnings matched exactly to an online player. A string:value map would be best.
---local mename = minetest.setting_get("name") --get_player_name()  -- none of these work in CSM
+local playerList = {} -- Initializing the player list for when raffle activates on .winner command
+local silenceToggle = false -- Figure out how to get this on the modDataStor sqlite file for statefulness.
+--local mename = minetest.localplayer:get_name() --minetest.setting_get("name") --minetest.get_player_name() --user:get_player_name()  -- none of these work in CSM
 --local meprivs = minetest.get_player_privs(mename)
---local meprivsstr = minetest.privs_to_string(meprivs)
+--local meprivsstr = minetest.privs_tostring(meprivs)
 
 for i = 1,#default do -- Make sure all our defaults are in place.
 	local key = "default_" .. forms[i]
@@ -33,17 +35,28 @@ end
 --          remove waypoint when quaternions are within 2 meters or after a long time
 --end
 
+local getLocalName = function() -- tries to get local player name for name highlighting, currently doesn't correctly match playername
+            if minetest.get_server_info().protocol_version <29 then -- copied from another script
+                localPlayerName = tostring(minetest.localplayer:get_name())
+                return true
+            end
+end
+
 local noticeWordsCheck = function(msgLower)
             --local enabled = true
             for n = 1,#noticeWords do -- go through notice words string array one at a time until it ends
                 if msgLower and string.match(msgLower, tostring(noticeWords[n])) then -- if cleaned message exists and theres a matched word
                     --local badword = string.match(msgLower, noticeWords[n])
-                    return true --, badword
-                --else return true -- always triggers notice
+                    return true --, badwordLocationBounds
                 end
             end
 end
 
+local playerMentionCheck = function(msgLower) -- we want to match our name even if they dont use capitalization
+            if msgLower and localPlayerName and string.match(msgLower, localPlayerName) then
+                return true --, playerNameLocationBounds playername found
+            end
+end
 local helpWordsCheck = function(msgLower)
             --local enabled = true
             for h = 1,#helpWords do -- go through help words string array one at a time until it ends
@@ -54,7 +67,7 @@ local helpWordsCheck = function(msgLower)
             end
 end
 
-local chatSource = function(msgLower) -- Find the source type of the message
+local chatSource = function(msgLower, msgPlain) -- Find the source type of the message
 	--if string.sub(msgLower, 1, 1) == "<" then -- Normal chat messages
 	--	local parts = string.split(msgLower, ">") -- Split it at the closing >
 	--	return {form = "chat", name = string.sub(parts[1], 2)} -- Return the first part excluding the first character
@@ -62,12 +75,12 @@ local chatSource = function(msgLower) -- Find the source type of the message
 		local parts = string.split(msgLower, " ") -- Split the message before and after the name
 	--?print("ME: " .. tostring(parts[2]))?
 		return {form = "me", name = parts[2]}
-    elseif string.sub(msgLower, 1, 3) == "PM " then
-        local parts = string.split(msgLower, " ")
-        return {form = "PM", name = parts[3]}
-    elseif string.match(msgLower, " Online: ") then
-        local parts = string.split(msgLower, ", ")
-        return {form = "online", name = parts[1]}
+    elseif string.sub(msgPlain, 1, 8) == "PM from " then
+        local parts = string.split(msgPlain, ":")
+        return {form = "PM", name = parts[1]}
+    elseif string.match(msgPlain, " Online: ") then
+        local parts = string.split(msgPlain, ": ")
+        return {form = "online", name = parts[2]}
 	elseif string.sub(msgLower, 1, 3) == "<= " then
 		local parts = string.split(msgLower, " ") -- Split the message before and after the name
 	--?print("JOIN/LEAVE: " .. tostring(parts[2]))
@@ -76,25 +89,26 @@ local chatSource = function(msgLower) -- Find the source type of the message
     elseif string.sub(msgLower, 1, 3) == "=> " then -- Default Join messages
         local parts = string.split(msgLower, " ")
         return {form = "join", name = parts[2]}
-    elseif string.sub(msgLower, 1, 10) == "#anticheat: " then
+    elseif string.sub(msgLower, 1, 12) == "#anticheat: " then
         local parts = string.split(msgLower, " ")
         return {form = "anticheat", name = parts[2]}
     elseif string.match(msgLower, " is requesting ") and string.match(msgLower, " teleport to ") and string.match(msgLower, " /tpy to accept") then
-        -- Yellow/Red [teleport_here]: player is requesting to teleport to you. /tpy to accept.
         if string.match(msgLower, " is requesting to teleport to you. /tpy to accept.") then
             local parts = string.split(msgLower, " ")
             return {form = "teleport_here", name = parts[1]}
-        -- Orange/Red [teleport_there]: player is requesting that you teleport to them. /tpy to accept; /tpn to deny
         elseif string.match(msgLower, " is requesting that you teleport to them. /tpy to accept; /tpn to deny") then
             local parts = string.split(msgLower, " ")
             return {form = "teleport_there", name = parts[1]}
         end
     elseif string.sub(msgLower, 1, 1) == "<" or string.match(msgLower, 1, 4) == "@IRC" then -- IRC message format on catlandia
-        if noticeWordsCheck(msgLower) then -- marks messages with possible sexual actions
-            local parts = string.split(msgLower, ">")
+        if noticeWordsCheck(msgLower) then -- marks messages with possible bad actions
+            local parts = string.split(msgPlain, ">")
             return {form = "warning", name = parts[1]}
+        elseif playerMentionCheck(msgLower) then -- highlights messages with your name in it
+            local parts = string.split(msgPlain, ">")
+            return {form = "mention", name = parts[1]}
         elseif helpWordsCheck(msgLower) then
-            local parts = string.split(msgLower, ">")
+            local parts = string.split(msgPlain, ">")
             return {form = "helping", name = parts[1]}
         end
         local parts = string.split(msgLower, ">")
@@ -113,13 +127,16 @@ local chatSource = function(msgLower) -- Find the source type of the message
             return {form = "irc_nickname", name = string.sub(parts[1], 2)} -- Baigle doubts these work if name specified
         else return {form = "error", name = "error"}
         end
-    elseif string.split(msgLower, ":") then -- Normal chat messages frog edit
+    elseif string.split(msgPlain, ":") then --and silenceToggle == false then -- Normal chat messages frog edit
         --if canKick() then --and noticeWordsCheck().enabled == true then -- if they have kick privileges
             if noticeWordsCheck(msgLower) then -- marks messages with bad words
-                local parts = string.split(msgLower, ":") -- Split it at the : instead of the <
+                local parts = string.split(msgPlain, ":") -- Split it at the : instead of the <
                 return {form = "warning", name = parts[1]}
+            elseif playerMentionCheck(msgLower) then -- highlights messages with your name in it
+                local parts = string.split(msgPlain, ">")
+                return {form = "mention", name = parts[1]}
             elseif helpWordsCheck(msgLower) then
-                local parts = string.split(msgLower, ">")
+                local parts = string.split(msgPlain, ":")
                 return {form = "helping", name = parts[1]}
             end
         --else local parts = string.split(msgLower, ":")
@@ -128,6 +145,7 @@ local chatSource = function(msgLower) -- Find the source type of the message
 		--?return {form = "chat", name = string.sub(parts[1], 1)} -- Return the first part
         return {form = "chat", name = parts[1]} -- Return the first part
         --end
+    --elseif  silenceToggle == false then return {form = "error", name = "error"}
     else return {form = "error", name = "error"}
     end
     --return false -- fail to white
@@ -225,6 +243,46 @@ end
 --      one section is notification of user using PM, chat message, and stored message from user to that player using minetest.after or alternative scheduling mechanism
 --      other section is artificial temp-ban using automated kicking that gives more kicks based on how many warnings the player has, using tiers
 
+minetest.register_chatcommand("winner", {
+    params = "",
+    description = "Pick a winning online player from the list!",
+    func = function()
+        if playerList and minetest.get_connected_players then
+            local playerList = minetest.get_connected_players() -- get playerlist array
+            local numPlayers = #playerList -- count elements in array
+            local winningPlayerIndex = math.random(1, numPlayers) -- pick random number between 1st player to last player
+            -- attempt to call field get_connected_players a nil value
+            local winnerPlayer = tostring(playerList[winningPlayerIndex]) -- pick player string out using index position
+            message = minetest.colorize("gold", "And the Winning Player is: [" .. winnerPlayer .. "] !") -- craft message
+            minetest.display_chat_message(message) -- display message in chat
+        else
+            winnerFuncError = minetest.colorize("red", "The winner function did not detect the existence of minetest.get_connected_players().")
+            minetest.display_chat_message(winnerFuncError)
+        end
+    end
+})
+
+minetest.register_chatcommand("silence", {
+    params = "",
+    description = "Toggle all public chat messages, keeping private and local messages.",
+    func = function()
+        if silenceToggle then
+            if silenceToggle == false then
+                local silenceToggle = true
+                silenceToggleMsg = minetest.colorize("blue", "The existing silence feature has been toggled ON.")
+                minetest.display_chat_message(silenceToggleMsg)
+            elseif silenceToggle == true then
+                local silenceToggle = false
+                silenceToggleMsg = minetest.colorize("blue", "The existing silence feature has been toggled OFF.")
+                minetest.display_chat_message(silenceToggleMsg)
+            end
+        else local silenceToggle = true -- this is always called for some reason
+            silenceToggleMsg = minetest.colorize("blue", "The silence feature has been toggled ON.")
+            minetest.display_chat_message(silenceToggleMsg)
+        end
+end
+})
+
 minetest.register_chatcommand("setcolor", { -- Assign a colour to chat messages from a specific person
 	params = "<name> <color>",
 	description = "Colourize a specified player's chat messages.",
@@ -294,11 +352,11 @@ minetest.register_on_mods_loaded(function()
         local msgLower = string.lower(msgPlain) -- lowercase for word matching
         --local msgClean = string.gsub(msgLower) -- rubenwardy said https://github.com/minetest/minetest/issues/7291#issuecomment-1042376491
         local msgTrim = string.trim(msgLower) -- msgClean) -- remove escape characters and pre-spaces
-        local source = chatSource(msgLower)
+        local source = chatSource(msgLower, msgPlain)
 
-
-		if source then -- Normal chat/me/join messages
-			local key = "player_" .. source.name -- The setting name
+        	--message = minetest.colorize(color, msgPlain .. " and the Winning Player is : " .. winnerPlayer .. " !")
+        if source then -- Normal chat/me/join messages
+            local key = "player_" .. source.name -- The setting name
 			local color = modDataStor:get_string(key) -- Get the desired colour
 			if color == "" then -- If no colour, set to default
 				color = modDataStor:get_string("default_" .. source.form)
@@ -313,8 +371,8 @@ minetest.register_on_mods_loaded(function()
 					key = string.sub(key, 8) -- Isolate the player name
 					msgPlain = string.gsub(msgPlain, key, minetest.colorize(value, key)) -- Replace plain name with coloured version
 				end
-			end
-			minetest.display_chat_message(msgPlain)
+        end
+			minetest.display_chat_message(msgPlain) -- if it doesn't match source or /players, just show plain message with no color
 			return true -- Override the original chat
 		end
 	end)
