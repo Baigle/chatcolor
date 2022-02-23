@@ -37,7 +37,7 @@ end
 
 local getLocalName = function() -- tries to get local player name for name highlighting, currently doesn't correctly match playername
             if minetest.get_server_info().protocol_version <29 then -- copied from another script
-                localPlayerName = tostring(minetest.localplayer:get_name())
+                local localPlayerName = tostring(minetest.localplayer:get_name())
                 return true
             end
 end
