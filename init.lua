@@ -1,4 +1,4 @@
--- Techy5's colored chat CSM
+-- Techy5 and random-geek and Baigle's colored chat CSM for Minetest
 
 local modname = tostring(assert(core.get_current_modname(), "core.get_current_modname returned false or nil value type.")) -- From the clientmods examples file, used to test assert()
 local modprepend = "["..modname.."] "
